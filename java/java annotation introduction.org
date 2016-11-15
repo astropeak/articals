@@ -1,0 +1,74 @@
+* Annotation： 代码的修饰符
+** 简介： 是什么， 用途， 为什么有用
+   Annotation 是一种元数据（metadata），它本身不是代码，但提供了一些关于代码的数据。这些数据可以是限定代码的一些功能，也可以是增加一些功能。可以将它理解为代码的修饰符，将代码当作一个名词，则Annotation是一个形容词，它使这个名词更加准确、或限定为更小的范围。如红红的苹果，直接说苹果也行，但有了红红的这个形容词，就更加准确了。
+   Annotation可以向编译器提供一些信息，如检测错误(@Override)、消除编译告警(@SuppressWarning)。 编译期生成代码（@Junit)。运行期提供一些检查机制（@NonNull）。被框架广泛使用。
+   为什么是需要的？有些信息无法通过代码表达出来，此时通过Annotation可以很好的达到。
+** 使用： 一个简单例子，如@Override。系统提供的annotation，做成列表
+   Java 预定义的annotation
+   | name                 | description                                                                      |
+   |----------------------+----------------------------------------------------------------------------------|
+   | @Deprecated          | 被修饰的元素已经被弃用，不应该再使用。编译器会打印一个告警，如果这个元素还被使用 |
+   | @Override            | 被修饰元素会覆盖基类的定义。                                                     |
+   | @SuppressWarnings    | 消除一个编译告警。接受一个参数                                                   |
+   | @SafeVarargs         | 指明方法不会对varargs做不安全的操作。unchecked 告警会被抑制                      |
+   | @FunctionalInterface | 被用作为函数式接口，java8引入                                                    |
+
+   修饰其它annotation的annotation
+   | @Retention  | 参数： RetentionPolicy.SOURCE, .CLASS, .RUNTIME. 表示这个annotation 会被保存的地方 |
+   | @Documented | 元素必须被javadoc文档化                                                            |
+   | @Target     | 参数：ElementType.METHOD, .ANNOTATION_TYPE, .CONSTRUCTOR, .FIELD, .LOCAL_VARIABLE, |
+   |             | .PACKAGE, .PARAMETER, .TYPE. 指定元素的类型。                                      |
+   | @Inherited  | 这个annotation会被它修改的类型的子类继承                                                      |
+   | @Repeatable | 可被多次应用在一个元素上                                                                               |
+   REF： https://docs.oracle.com/javase/tutorial/java/annotations/predefined.html
+
+   使用方法，以@Override为例。
+   #+begin_src java :classname Test
+   class A {
+       void foo(){
+           System.out.println("Supper class");
+       }
+   }
+   class A1 extends A {
+       @Override
+       void foo(){
+           System.out.println("Sub class");
+       }
+   }
+   class Test {
+       public static void main(String[] args) {
+           A a = new A1();
+           a.foo();
+       }
+   }
+   #+end_src
+
+   #+RESULTS:
+   : Sub class
+
+   @Override确保被修饰方法确实是覆盖了一个基类的方法，而不是定义了一个新的方法（这种情况在方法名拼写错误时发生），或重载了一个方法（在参数类型错误时发生）。以下是一个方法名拼写错误的例子。原本想覆盖基类的foo方法，但却拼写错了，导致程序结果错误。通过@Override在编译器就可检测出来。
+
+   #+begin_src java :classname Test
+   class A {
+       void foo(){
+           System.out.println("Supper class");
+       }
+   }
+   class A1 extends A {
+       void fooo(){
+           System.out.println("Sub class");
+       }
+   }
+   class Test {
+       public static void main(String[] args) {
+           A a = new A1();
+           a.foo();
+       }
+   }
+   #+end_src
+
+   #+RESULTS:
+   : Supper class
+
+** 定义新的annotation。 涉及到的语法， processor的编写（以及使用APT辅助编写）。
+** 在框架中的应用。如Junit中。
