@@ -1,0 +1,193 @@
+* Inner Class 简介
+** 简介
+   如果一个类定义在另一个类里面、方法里、块里，则是一个内部类。内部类不仅仅是组合，它能够访问外部类所有成员，包括私有成员。是划分类层次结构的一种方式。但最独特的，可以实现多重继承（这个是java语言本身不提供的）。
+
+** 基本语法
+   定义一个内部类：
+   #+begin_src java :classname Test
+   class Outer {
+       private int value;
+       Outer(int v) {
+           this.value = v;
+       }
+       class Inner {
+           void bar() {
+               System.out.println("Inner class. Value: "+value);
+           }
+       }
+       void foo(){
+           Inner in = new Inner();
+           System.out.println("Outer class. Value: "+value);
+           in.bar();
+       }
+   }
+
+   class Test {
+       public static void main(String[] args) {
+           Outer ot = new Outer(100);
+           ot.foo();
+       }
+   }
+   #+end_src
+
+   #+RESULTS:
+   | Outer | class. | Value: | 100 |
+   | Inner | class. | Value: | 100 |
+
+   - 内部类在外部类中的使用跟使用一个常规类一样。
+   - Inner的bar函数能够访问Outer的value成员，即使这个成员是private的。
+   
+
+   在内部类中访问外部类指针：通过外部类名.this. 如下：
+   #+begin_src java :classname Test
+   class Outer {
+       private int value;
+       Outer(int v) {
+           this.value = v;
+       }
+       class Inner {
+           void bar() {
+               System.out.println("Inner class. Value: "+value);
+           }
+           Outer outer(){
+               return Outer.this;
+           }
+       }
+       void foo(){
+           Inner in = new Inner();
+           System.out.println("Outer class. Value: "+value);
+           in.bar();
+       }
+   }
+
+   class Test {
+       public static void main(String[] args) {
+           Outer ot = new Outer(100);
+           Outer.Inner in = ot.new Inner();
+           in.outer().foo();
+       }
+   }
+   #+end_src
+
+   #+RESULTS:
+   | Outer | class. | Value: | 100 |
+   | Inner | class. | Value: | 100 |
+
+
+   在Outer类外访问Inner类：
+   创建一个inner类对象：
+   1. 通过Outer.Inner表示内部类的类型。
+   2. 先创建一个Outer对象，再通过这个对象的new操作符创建。如下：
+   #+begin_src java :classname Test
+   class Outer {
+       private int value;
+       Outer(int v) {
+           this.value = v;
+       }
+       class Inner {
+           void bar() {
+               System.out.println("Inner class. Value: "+value);
+           }
+       }
+       void foo(){
+           Inner in = new Inner();
+           System.out.println("Outer class. Value: "+value);
+           in.bar();
+       }
+   }
+
+   class Test {
+       public static void main(String[] args) {
+           Outer ot = new Outer(100);
+           Outer.Inner in = ot.new Inner();
+           in.bar();
+       }
+   }
+   #+end_src
+
+   #+RESULTS:
+   : Inner class. Value: 100
+
+   为什么需要ot.new,而不是Outer.new来创建内部类对象？因为内部类依赖于外部类对象，对象存在它才能创建。
+
+   
+   内部类可以实现一个接口，则它可以被直接upcast成这个接口的变量（即使在外部类外面）。这种用法比较常用，通常将内部类定义为private的（则只有在外部类中可以访问它），内部类实现一个接口，或继承一个类，再提供一个方法来获取一个内部类的实例（直接获取接口或基类类型）。例子：
+   #+begin_src java :classname Test
+   interface Intf {
+       void bar();
+   }
+   
+   class Outer {
+       private int value;
+       Outer(int v) {
+           this.value = v;
+       }
+       class Inner implements Intf{
+           public void bar() {
+               System.out.println("Inner class. Value: "+value);
+           }
+       }
+       Intf getInner(){
+           return new Inner();
+       }
+   }
+   
+   class Test {
+       public static void main(String[] args) {
+           Outer ot = new Outer(100);
+           Intf in = ot.getInner();
+           in.bar();
+       }
+   }
+   #+end_src
+
+   #+RESULTS:
+   : Inner class. Value: 100
+
+   local inner class: inner class defined in a method. Same as inner class in another class, but only visible in that method.
+   Also inner class can be defined in any block.
+
+
+   Annoymous class 在内部类中很常用。存在于一个getter中。
+   
+
+   嵌套类：定义成static的内部类。区别： 不依赖于外部类，只能访问外部类的static成员； 可被定义在接口中（不用加static关键字，被定义在接口中的类自动成为public static）。 外部类或外部接口只是一个名字空间。
+   
+
+   继承一个内部类。构造函数必须以外部类为参数，由此保证外部类对象已经创建了。
+   #+begin_src java :classname Test
+   //: innerclasses/InheritInner.java 
+   // Inheriting an inner class. 
+   class WithInner { 
+       class Inner {} 
+   } 
+   class InheritInner extends WithInner.Inner { 
+       //! InheritInner() {} // Won’t compile 
+       InheritInner(WithInner wi) { 
+           wi.super(); 
+       } 
+   } ///:~ 
+   
+   class Test {
+       public static void main(String[] args) {
+           WithInner wi = new WithInner(); 
+           InheritInner ii = new InheritInner(wi); 
+       }
+   }
+   #+end_src
+
+   #+RESULTS:
+
+** 常见用途详解
+   实现抽象工厂：P278
+   将类的构造函数设置为private, 提供一个public static抽象工厂类成员（如factory），通过类名.factory.getInstance()来获取一个类实例。
+   这个感觉将工厂方法与抽象工厂结合起来了。 抽象工厂类成员使用匿名内部类来实现。
+   
+
+   在接口定义中，通过嵌套类实现公共的操作。
+
+
+   实现多重继承。java只允许单重继承，要使一个类能够同时继承两个类，只能通过多重继承。只不过在访问由内部类继承的那个类时，要写上外部类的名称。但这只是 名称上的区别，功能上没区别。
+
+** 在框架中的应用例子
+   jdk中的 java.util.concurrent.CountDownLatch类中定义了一个内部类，这个内部类继承了AbstractQueuedSynchronizer类，用于处理同步相关的操作。简化了这个类的实现，避免了CountDownLatch is a AbstractQueuedSynchronizer的问题。
