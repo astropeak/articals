@@ -6,27 +6,18 @@
 #+DESCRIPTION:
 #+TITLE: Emacs Helm: 使用关键字搜索、获取、执行任何东西
 
-[[https://github.com/emacs-helm/helm][Helm]] 是一个emacs的软件包，定义了一个通用框架，可通过关键字（可为待匹配内容的子字符串或正则表达式）搜索、获取、执行任何东西。比如：
+[[https://github.com/emacs-helm/helm][Helm]] 是一个emacs的软件包，定义了一个通用框架，交互式地、动态缩减式地使用关键字选择、获取、执行任何东西。比如：
 
 - 执行emacs 命令
-  
-  要执行 ~list-matching-lines~ 命令，只需要输入一个或多个这个命令名称的子字符串，如'match line'， helm会找到所有包含'match line'的命令供选择，最后按下Enter键即可执行命令。
-  
-  所用到的命令是 ~helm-M-x~ 。有了这个命令后，即使某个命令没有绑定快捷键，也能够很快的执行。
-  
 - 打开文件
-  
-  例如输入 'emacs'，helm会找到所有名称包含了'emacs'的文件，以列表的形式显示出来。并且在每输入一个字符后，列表都会更新。因此当输入一个'e'后，目标文件如果已经被找到，则按Enter键直接打开即可。 如果输入'emacs'后，仍然有很多文件，可继续输入更我的字符串，进行更准确的筛选。
-  
 - 查看man文档
-  
 - 执行grep操作
-  
 - 执行apt命令
+- 相看imenu函数定义
+- 切换buffer
   
-- 相看当前文件的imenu函数定义
-  
-* 运行原理
+Helm软件包本身包含两部分，框架本身及应用。以上列表均为应用。基于框架，可以轻松创建新的应用。
+* 基本原理
   Helm的三个重要概念：candidate, narrowing, action.
   
 *** Candidate
@@ -43,7 +34,7 @@
 *** Action
     当一个candidate被选中后，按下Enter后，就会有一个action被执行。对于打开文件，其action对应到emacs命令就是'find-file'。可以为一个条目定义多个action，如对于文件条目action可以为打开文件、重命令文件、删除文件等。 通过TAB键从多个action中选择，如果直接按Enter会执行第一个action.
     
-* 定义一个新的helm命令
+* 定义一个新的helm应用
 *** 基本例子
     要定义一个新的helm命令，只需定义一个变量指定candidate及对应的action，然后将其作为参数传给helm就可以了，以下为一个例子。
     #+BEGIN_SRC elisp 
@@ -110,3 +101,34 @@
 
     (helm :sources '(some-helm-source))
     #+END_SRC
+*** helm-org-headlines的定义
+    这个命令由helm默认提供，其定义如下，可为实现新的命令提供参考。
+    #+BEGIN_SRC elisp
+    (setq helm-source-org-headline
+          `((name . "Org Headline")
+            (headline
+             ,@(mapcar
+                (lambda (num)
+                  (format "^\\*\\{%d\\} \\(.+?\\)\\([ \t]*:[a-zA-Z0-9_@:]+:\\)?[ \t]*$"
+                          num))
+                (number-sequence 1 8)))
+            (condition . (eq major-mode 'org-mode))
+            (migemo)
+            (subexp . 1)
+            (persistent-action . (lambda (elm)
+                                   (helm-action-line-goto elm)
+                                   (org-cycle)))
+            (action-transformer
+             . (lambda (actions candidate)
+                 '(("Go to line" . helm-action-line-goto)
+                   ("Refile to this headline" . helm-org-headline-refile)
+                   ("Insert link to this headline"
+                    . helm-org-headline-insert-link-to-headline))))))
+
+    (defun helm-org-headlines ()
+      "Preconfigured helm to show org headlines."
+      (interactive)
+      (helm-other-buffer 'helm-source-org-headline "*org headlines*"))
+    #+END_SRC
+    
+    
