@@ -1,0 +1,112 @@
+#+BLOG: cnblogs
+#+POSTID: 6219857
+#+DATE: [2016-12-25 Sun 11:37]
+#+OPTIONS: toc:nil num:nil todo:nil pri:nil tags:nil ^:nil
+#+TAGS:
+#+DESCRIPTION:
+#+TITLE: Emacs Helm: 使用关键字搜索、获取、执行任何东西
+
+[[https://github.com/emacs-helm/helm][Helm]] 是一个emacs的软件包，定义了一个通用框架，可通过关键字（可为待匹配内容的子字符串或正则表达式）搜索、获取、执行任何东西。比如：
+
+- 执行emacs 命令
+  
+  要执行 ~list-matching-lines~ 命令，只需要输入一个或多个这个命令名称的子字符串，如'match line'， helm会找到所有包含'match line'的命令供选择，最后按下Enter键即可执行命令。
+  
+  所用到的命令是 ~helm-M-x~ 。有了这个命令后，即使某个命令没有绑定快捷键，也能够很快的执行。
+  
+- 打开文件
+  
+  例如输入 'emacs'，helm会找到所有名称包含了'emacs'的文件，以列表的形式显示出来。并且在每输入一个字符后，列表都会更新。因此当输入一个'e'后，目标文件如果已经被找到，则按Enter键直接打开即可。 如果输入'emacs'后，仍然有很多文件，可继续输入更我的字符串，进行更准确的筛选。
+  
+- 查看man文档
+  
+- 执行grep操作
+  
+- 执行apt命令
+  
+- 相看当前文件的imenu函数定义
+  
+* 运行原理
+  Helm的三个重要概念：candidate, narrowing, action.
+  
+*** Candidate
+    Candidate即候选值，是一个列表，保存所有可供选择的条目。对于打开文件的命令，candidate是所有的文件名称的列表。
+*** Narrowing
+    Helm命令启动后，用户未输入任何关键字前，会将candidate中的所有条目显示出来，每行显示一个项，可通过'C-n', 'C-p'上下移动光标选择当前条目。
+    
+    如果candidate的数目较少，此时没必要输入关键字，通过上下移动光标选择就行了;但如果candidate数目较多，目标条目没有被显示在第一页，可输入关键字，对candidate的条目进行筛选，只有匹配到关键字的条目才会被显示出来。这就是narrowing。
+    
+    值得一提的是，这个过程是动态的，即每输入一个字符，candidate的条目都会被重新筛选。有时只输入了一个字符，目标条目已经显示在第一页，则可停止输入，通过移动光标选择当前条目；有时输入了一个关键字，目标条目仍然没有出现，则可按空格，继续输入另一个关键字，进行更精确的筛选，直到目标条目出现为止。
+    
+    输入的关键字越多，candidate的数目会越少，目标条目出现在第一页第一个条目位置的机率就越大，进而选择也就越方便。
+    
+*** Action
+    当一个candidate被选中后，按下Enter后，就会有一个action被执行。对于打开文件，其action对应到emacs命令就是'find-file'。可以为一个条目定义多个action，如对于文件条目action可以为打开文件、重命令文件、删除文件等。 通过TAB键从多个action中选择，如果直接按Enter会执行第一个action.
+    
+* 定义一个新的helm命令
+*** 基本例子
+    要定义一个新的helm命令，只需定义一个变量指定candidate及对应的action，然后将其作为参数传给helm就可以了，以下为一个例子。
+    #+BEGIN_SRC elisp 
+    (setq some-helm-source
+          '((name . "HELM at the Emacs")
+            (candidates . (1 2 3 4))
+            (action . (lambda (candidate)
+                        (message-box "%s" candidate)))))
+
+    (helm :sources '(some-helm-source))
+    #+END_SRC
+    
+    #+RESULTS:
+   : 2
+    
+    其中定义candidate、action的变量叫做source, 是一个assoc list。candidates是一个list， action是一个函数，action函数被调用时，当前选择的candidate会被作为参数传入。
+    
+*** 定义多个action
+    上面的例子中action的值为一个匿名函数，如果要定义多个action，则需要将action的值设置为一个list，list的元素是一个cons：（说明 . 函数）。如下所示，定义了两个action。
+    #+BEGIN_SRC elisp
+    (setq some-helm-source
+          '((name . "HELM at the Emacs")
+            (candidates . (1 2 3 4))
+            (action .
+                    (("Display" .  (lambda (candidate)
+                                     (message-box "%s" candidate)))
+                     ("None" . identify)
+                     ))
+            ))
+    (helm :sources '(some-helm-source))
+    #+END_SRC
+    
+    #+RESULTS:
+    
+*** 将candidate的选择值与真实值分离
+    有时候需要通过不同的值选择candidate，此时可将candidates设置为cons (KEY . VALUE)的list。其中KEY将用于选择，VALUE将作为action函数的输入参数值。
+    #+BEGIN_SRC elisp
+    (setq some-helm-source
+          '((name . "HELM at the Emacs")
+            (candidates . (("one" . 1) 2 ("three" . 3) 4))
+            (action .
+                    (("Display" .  (lambda (candidate)
+                                     (message-box "%s" candidate)))
+                     ("None" . identify)
+                     ))
+            ))
+    (helm :sources '(some-helm-source))
+    #+END_SRC
+    
+    #+RESULTS:
+    
+*** 动态candidate
+    有时candidates需要动态计算，或者静态计算量会很大，此时可将candidates设置为一个函数，这个函数将被用于计算所有candidates的值。
+    #+BEGIN_SRC elisp
+    (defun random-candidates ()
+      "Return a list of 4 random numbers from 0 to 10"
+      (loop for i below 4 collect (random 10)))
+
+    (setq some-helm-source
+          '((name . "HELM at the Emacs")
+            (candidates . random-candidates)
+            (action . (lambda (candidate)
+                        (message "%s" candidate)))))
+
+    (helm :sources '(some-helm-source))
+    #+END_SRC
