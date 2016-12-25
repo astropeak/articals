@@ -1,0 +1,92 @@
+* JDK代码阅读
+  <2016-12-02 Fri>
+** 知识点
+*** 将一个Collection class转变为只读不可写
+    只需要继承这个类，然后将所有写操作实现为 
+    throw new UnsupportedOperationException(); 
+    即可。
+         
+    如UnmodifiableNavigableSet 的实现， 将 pollFirst，pollLast。
+    
+        static class UnmodifiableNavigableSet<E>
+                              extends UnmodifiableSortedSet<E>
+                              implements NavigableSet<E>, Serializable {
+
+         private static final long serialVersionUID = -6027448201786391929L;
+
+         /**
+          * A singleton empty unmodifiable navigable set used for
+          * {@link #emptyNavigableSet()}.
+          *
+          * @param <E> type of elements, if there were any, and bounds
+          */
+         private static class EmptyNavigableSet<E> extends UnmodifiableNavigableSet<E>
+             implements Serializable {
+             private static final long serialVersionUID = -6291252904449939134L;
+
+             public EmptyNavigableSet() {
+                 super(new TreeSet<E>());
+             }
+
+             private Object readResolve()        { return EMPTY_NAVIGABLE_SET; }
+         }
+
+         @SuppressWarnings("rawtypes")
+         private static final NavigableSet<?> EMPTY_NAVIGABLE_SET =
+                 new EmptyNavigableSet<>();
+
+         /**
+          * The instance we are protecting.
+          */
+         private final NavigableSet<E> ns;
+
+         UnmodifiableNavigableSet(NavigableSet<E> s)         {super(s); ns = s;}
+
+         public E lower(E e)                             { return ns.lower(e); }
+         public E floor(E e)                             { return ns.floor(e); }
+         public E ceiling(E e)                         { return ns.ceiling(e); }
+         public E higher(E e)                           { return ns.higher(e); }
+         public E pollFirst()     { throw new UnsupportedOperationException(); }
+         public E pollLast()      { throw new UnsupportedOperationException(); }
+         public NavigableSet<E> descendingSet()
+                  { return new UnmodifiableNavigableSet<>(ns.descendingSet()); }
+         public Iterator<E> descendingIterator()
+                                          { return descendingSet().iterator(); }
+
+         public NavigableSet<E> subSet(E fromElement, boolean fromInclusive, E toElement, boolean toInclusive) {
+             return new UnmodifiableNavigableSet<>(
+                 ns.subSet(fromElement, fromInclusive, toElement, toInclusive));
+         }
+
+         public NavigableSet<E> headSet(E toElement, boolean inclusive) {
+             return new UnmodifiableNavigableSet<>(
+                 ns.headSet(toElement, inclusive));
+         }
+
+         public NavigableSet<E> tailSet(E fromElement, boolean inclusive) {
+             return new UnmodifiableNavigableSet<>(
+                 ns.tailSet(fromElement, inclusive));
+         }
+     }
+*** Set类都是基于Map类实现的
+    因为一个Set相当于一个只有Key，没有值的Map。
+    对于Set<E>, 对应的Map为Map<E,?>或Map<E, Object>。
+*** 堕性求值
+    Lazily initialized key set： 其实就是获取时判断这个变量是不是null, 不是才初始化一个值。在ConcurrentSkipListMap中。
+    声明：
+    /** Lazily initialized key set */
+    private transient KeySet<K> keySet;
+    
+    使用：
+    public NavigableSet<K> keySet() {
+    KeySet<K> ks = keySet;
+    return (ks != null) ? ks : (keySet = new KeySet<K>(this));
+    }
+
+** 疑问
+*** 代码重用方面
+   TreeSet 和 ConcurrentSkipListMap中的KeySet实现99%相似。不同点为TreeSet使用的Map为NavitableMap,  ConcurrentSkipListMap使用的Map为ConcurrentNavitableMap.
+   为什么没有一个concurrentSet, 作为公共类。实现更好的代码复用。
+
+ 
+  

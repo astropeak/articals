@@ -1,0 +1,59 @@
+#+BLOG: cnblogs
+#+POSTID: 6206379
+#+DATE: [2016-12-20 Tue 20:51]
+#+OPTIONS: toc:t num:nil todo:nil pri:nil tags:nil ^:nil
+#+CATEGORY: 
+#+TAGS:
+#+DESCRIPTION:
+#+TITLE: 用emacs的org2blog组件写cnblogs博客 -- 环境配置及使用
+
+本文给出了一个安装、配置org2blog的方法，实现在emacs中书写blog文章、并发布到cnblogs网站的功能。
+emacs是一个编辑器， 同时也是一个平台，可以通过插件无限扩展功能。org2blog是emacs的一个插件，这个插件能够将org-mode文件发布到wordpress博客网站上，但同时也支持发布到所有提供了MetaWeblog Web service API的博客网站。 博客园网站提供了MetaWeblog的接口，因此可使用org2blog发布博文到博客园，但代码需要做一些修改。 [[https://en.wikipedia.org/wiki/MetaWeblog][MetaWeblog]] 是一个通用的web service API 标准，用于读写weblog。
+
+* 配置
+  从github下载  [[https://github.com/astropeak/org2blog][org2blog]],  [[https://github.com/astropeak/metaweblog][metaweblog]]. \\
+  以上版本是针对博客园修改后的版本，删除了几个博客园metaweblog API不支持的几个参数。
+  
+  metaweblog又依赖于xml-rpc, 可在这里下载： https://www.emacswiki.org/emacs/xml-rpc.el
+ 
+  将org2blog, metaweblog的目录加入load-path，并使用以下配置代码。 将自己的username 和password分别填入。
+  #+BEGIN_SRC elisp
+  ;; org2blog setup
+  (require  'metaweblog)
+  (require 'org2blog-autoloads)
+  ;; (setq url-proxy-services '(("http" . "xxx.xxxx.com:8080")))
+  (setq org2blog/wp-blog-alist
+        '(("cnblogs"
+           :url "http://rpc.cnblogs.com/metaweblog/astropeak"
+           :username "astropeak"
+           ;; :password "xxxxx"
+           :default-title "Hello World"
+           :tags-as-categories nil)))
+  #+END_SRC
+
+  org2blog支持proxy, 只需设置 ~url-proxy-services~ 变量即可。
+
+* 使用
+** 创建一篇博文并发布
+   1. 运行 ~org2blog/wp-new-entry~ ， 创建一个新的org-mode下的buffer. 程序会自动填入需要的一些属性值。\\
+      如果未login，会提示先login.
+   2. 编辑内容。
+   3. 内容完成后， 运行 ~org2blog/wp-post-buffer-and-publish~ 将buffer的内容发布到博客园网站。\\
+      发布后，这篇博文的id会被更新在这个buffer中。
+
+** 更新一篇博文
+   打开之前保存的博文org文件，对文件做修改。修改完成后，再次运行 ~org2blog/wp-post-buffer-and-publish~ 命令即可将修改更新到cnblogs网站上。
+** 删除一篇博文
+   运行 ~org2blog/wp-delete-entry~ 删除博文。
+* 待办
+  - 检查tag, categery的支持
+  - 修改预览链接\\
+    目前是指向了错误的页面。因为这个页面地址是针对wordpress的。
+  - 改善一些交互\\
+    如去掉提示是否login，修改为直接login（如果还没有login的话）。
+  - 将table of contents 变为目录。
+
+
+
+    
+  

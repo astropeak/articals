@@ -1,0 +1,262 @@
+* nodejs cheerio模块提取html页面内容
+  本文给出使用一个用cheerio模块提取html文件中指定内容的例子，并说明具体步骤、涉及到的API、以及其它模块。
+  cheerio模块是一个类似jquery的模块，具有相似的API、功能，能够将一个网页解析为DOM，以及通过selector选择元素，设置、获取元素属性。
+  
+  以下为我们待解析网页截图：
+  [[file:img/nodejs-cheerio-extract-html-content/1.png][html page]]
+  
+  目标是将task1-5中的所有题目、以及答案提取出来，以文本形式保存。最终提取出的效果如下。
+  这是题目文本：
+  #+begin_src text
+  Task 1: You will be given 10 minutes to read the text for the first time and then choose an appropriate answer for each of the following questions.
+
+  1. What’s the passage mainly about?
+  A. How to learn online successfully.
+  B. How to set up a learning goal.
+  C. The future of online learning.
+  D. The benefits of online learning.
+
+  2. Charles fruitlessly applied for job after job because of the following reasons EXCEPT  ________.
+  A. he lacked in qualifications.
+  B. he had no special training.
+  C. he is too old and can’t walk.
+  D. he wasn’t even able to do office work.
+
+  3. Weather has great __________ on our health.
+  A. communicative.
+  B. effective.
+  C. student－centered.
+  D. teacher－centered.
+
+
+  #+end_src
+  
+  这是答案文本：
+  #+begin_src text
+  Task 1:
+  1. D
+  2. C
+  3. C
+  4. D
+  5. A
+  #+end_src
+  注：其中答案保存在网页中，但在网页中没有显示出来。
+** 找到目标元素
+   提取问题文本的整体思路：先找到包含题目的所有元素，然后再获取这些元素的内容即可。
+   通过chrome的devtool(或者firefox的firebug）看出，所有的目标元素为：hr元素的所有兄弟结点。cheerio的nextAll函数满足需求，这个函数获取当前结点的所有后续的兄弟结点。程序如下：
+   #+begin_src js
+   var fs = require('fs');
+   var cheerio = require('cheerio');
+
+   var myHtml = fs.readFileSync("a.html");
+   var $ = cheerio.load(myHtml);
+   var t = $('html').find('hr');
+   var t2 = t.nextAll();
+
+   t2.each(function(i, elem) {
+       getContent($(this));
+       console.log($(this).text());
+   });
+   #+end_src
+   首先将网页读取为一个字符串，传给cheerio.load函数，返回值即是一个cheerio对象（类似于一个jquery对象）。然后使用find函数，通过selector查找hr元素。再调用 nextAll函数得到hr元素的所有兄弟结点。 最后在each函数中， 通过text函数将所有包含问题的元素的见容打印出来。
+   
+   结果中有乱码，问题原因是fs模块不支持中文。通过iconv-lite先解码为中文解决。修改后代码如下：
+   #+begin_src js
+   var fs = require('fs');
+   var cheerio = require('cheerio');
+   var iconv = require('iconv-lite');  
+
+   var myHtml = fs.readFileSync("a.html");
+   var $ = cheerio.load(iconv.decode(myHtml, 'gbk'));
+   var t = $('html').find('hr');
+   var t2 = t.nextAll();
+
+   t2.each(function(i, elem) {
+       getContent($(this));
+       console.log($(this).text());
+   });
+   #+end_src
+   最终结果如下：
+   #+begin_src text
+              Task  1: You will be given 10 minutes to read the text for the first time and then 
+                                            choose  an appropriate answer for each of the following questions.
+   
+       
+       
+          1. What does the “true gratitude” mean?
+             
+    
+            A. A way of life.
+               
+             B. A joyous occasion.
+               
+      
+      C. A much deeper level of gratitude.         
+          
+            
+            D. The improvement of the quality of life.
+       
+       
+            2. Who has so many things to be grateful for?
+             
+           A. A successful man.
+               
+      
+      B. A miserable person.
+               
+      
+      C. A good－tempered man.
+           
+               
+      
+      D.All of us.
+       
+       
+       
+              3.
+           In the sentence “Expressing love and gratitude  satisfies our deep sense of purpose”， the purpose includes all of the following  EXCEPT ________.
+               
+                
+                A. spiritual health.
+                   
+              
+              B. emotional health.
+                 
+              
+              C. physical health.
+               
+                  
+                
+                D. social health.
+       
+       
+       
+            4. What kind of gift is suitable  for mother on Mother’s Day according to the author?
+       
+              
+              A. Carnation.
+                 
+              
+              B. Lily.
+                 
+              
+              C. Accessories.
+               
+                  
+                
+                D. Greeting cards.
+       
+       
+          5. If a friend does you a favor, you can do all of the following EXCEPT ________.
+             
+          
+          A. treat him in a restaurant.
+         
+               
+      
+      B. buy ice－cream for him.
+               
+       C. just say “thank you”.
+           
+               
+       D. ask him to help next time.
+       
+   #+end_src
+
+   以上结果有多余的空格、换行符，输出文本看起来很散乱，但至少内容是获取正确了。再在task2-5的html文件验证一下，也获取到了正确的内容，证明方法可行。接下来我们可以集中精力解决格式散乱的问题。
+** 美化文本输出
+   最主要的问题是有多余的空格、换行符。想到的一个办法是：将所有结点的内容（包括文本结果）trim，即去年前后的所有空白字符，并对于br元素，加入一个换行符。也即模拟了一下html文档的render效果（因为在浏览器中显示是正确的，所以采用同样的方法，也能得到相同的结果）。
+   要实现这个方法，要获取一个元素的所有的子结果，使用cheerio的contents函数，这个函数获取一个元素的所有子元素（包括文本元素）。然后调用字符串的trim函数去除首尾的空白文本。由于子元素又有子元素，因此使用递归函数。代码如下：
+   #+begin_src js
+   function getContent(node){
+       var a = node.contents();
+       if (a.length == 0) {
+           if (node.is('br')){
+               RST+='\n';
+           } else {
+               RST+=node.text().trim();;
+           }
+       } else {
+           node.contents().each(function(i, elem){
+               getContent($(this));
+           });
+
+           if (node.is('p') || node.is('tr')){
+               RST+='\n';
+           }
+       }
+   }
+   #+end_src
+   getContent函数用于获取一个元素的文本内容，输入参数为元素，这个函数会被递归调用。首先调用contents函数获取所有子元素。如果子元素数目为0，表示这个元素是叶结点，则首先判断如果是br元素，则在结果中加入一个换行符，否则，调用text函数获取这个元素的文本内容。
+   如果子元素大于0，则递归地处理所有子元素。如果当前元素为p或tr元素，则在结果中加入一个换行。
+   其中RST为一个全局变量，用于保存结果文本。在调用函数前需要设置为空字符串。
+   这样处理后，结果如下：
+   #+begin_src text
+   Task  1: You will be given 10 minutes to read the text for the first time and then
+   choose  an appropriate answer for each of the following questions.
+   1. What does the “true gratitude” mean?
+   A.A way of life.
+   B.A joyous occasion.
+   C.A much deeper level of gratitude.
+   D.The improvement of the quality of life.
+   2. Who has so many things to be grateful for?
+   A.A successful man.
+   B.A miserable person.
+   C.A good－tempered man.
+   D.All of us.
+   3.In the sentence “Expressing love and gratitude  satisfies our deep sense of purpose”， the purpose includes all of the following  EXCEPT ________.
+   A.spiritual health.
+   B.emotional health.
+   C.physical health.
+   D.social health.
+   4. What kind of gift is suitable  for mother on Mother’s Day according to the author?
+   A.Carnation.
+   B.Lily.
+   C.Accessories.
+   D.Greeting cards.
+   5. If a friend does you a favor, you can do all of the following EXCEPT ________.
+   A.treat him in a restaurant.
+   B.buy ice－cream for him.
+   C.just say “thank you”.
+   D.ask him to help next time.
+
+
+   #+end_src
+   
+   看起来漂亮多了。
+   问题文本提取成功，接下来再提取答案文本。
+** 提取答案文本
+   在html源文件中搜索answer，可以看出，答案是保存在script中的，如下：
+   #+begin_src html
+   <SCRIPT LANGUAGE="JavaScript">
+     var StandardAnswer = new Array() 
+     StandardAnswer =["C","D","D","D","D"]
+   </SCRIPT>
+   #+end_src
+   选择题的答案保存在StandardAnswer的数组中。则获取答案文本的方法为：先获取script元素中的代码文本，再通过eval函数得到这个数组值，最后生成答案文本。代码如下：
+   #+begin_src js
+   var t = $('html').find('script');
+   var A = undefined;
+   t.each(function(i, elem) {
+       var text = $(this).text();
+       if (text.match('StandardAnswer')){
+           var a = eval(text);
+           console.log("standardanswer: "+ a);
+           A= a;
+       }
+   });
+   #+end_src
+   变量A保存答案数组。通过判断文本中是否包含'StandardAnswer'来判断是否是目标代码。然后将这个代码传给eval，返回值即为‘["C","D","D","D","D"]‘这个数组。
+   有了答案数组，生成答案文本就比较容易了。
+** 最终代码
+   可以在这查看最终代码: github 链接。 
+   最终的代码还解决了一些小问题，如问题文本中包含了多余的文本（对于task4），task4的答案也会被显示在问题文本中，没有留下空白填写答案等。 整个分析、编码过程大致3个小时。其中文件a.js用于生成问题文本，b.js用于生成答案文本。a.js与b.js有很大的重复（b.js是直接复制了一份a.js修改而来）。这个代码基本上是解决一次性问题，没有什么重用性（在编写的过程中也没有考虑这些）。但是最重要的是：它解决了问题，它能够工作。它不需要那么好！最后，这个程序被用于处理几十个文件，成功正确地生成了问题文本及答案文本。
+   
+   
+   
+   
+   
+   
+   
+   
+   

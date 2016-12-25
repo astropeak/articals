@@ -1,0 +1,253 @@
+* Java Enum简介
+** 简介： 是什么， 用途， 为什么有用，有没有可替代方案。
+   Enum定义了一种新的类型，并且这个类型只有有限个可取值。
+   一种定义常量集的方法。总会有有限状态的集合，如月份、人种、状态机状态、语言等。在这种情况下，enum是非常有效的工具。
+   在JAVA5引入。在些之前，只能通过其它方法模拟，比较麻烦。并且enum可以用在switch语句中。
+** 基本语法
+   定义一个Enum
+   #+begin_src java :classname Test
+   enum Status {
+       INIT, CONFIGURED, ACTIVATED, ENABLED, DISABLED
+   }
+
+   public class Test {
+       public static void main(String[] args){
+           Status s = Status.INIT;
+           System.out.println(s);
+       }
+   }
+   #+end_src
+   
+   #+RESULTS:
+   : INIT
+   
+   可以看出：
+   - 一个enum就像是一个class定义了多个const static 成员变量，其中class的类名为Status,  成员变量类型也为Status.
+     编译器做出了这些效果，但不知道是如何做的。
+     TODO： 研究enum的编译过程。
+     =》这里有一点思路：
+         @SuppressWarnings("unchecked")
+    public final Class<E> getDeclaringClass() {
+        Class<?> clazz = getClass();
+        Class<?> zuper = clazz.getSuperclass();
+        return (zuper == Enum.class) ? (Class<E>)clazz : (Class<E>)zuper;
+    }
+     enum type 和enum constant类是继承关系， enum type是基类，enumconstant是子类。 但从jdk中无法找到enum type的定义。
+
+     enum的实现（P752， 通过语句 OSExecute.command("javap Explore");）：
+     final class Explore extends java.lang.Enum{
+    public static final Explore HERE;
+    public static final Explore THERE;
+    public static final Explore[] values();
+    public static Explore valueOf(java.lang.String);
+    static {};
+     }
+     编译器添加了values方法，以及 修改了valueOf函数。
+
+   - 编译器默认提供了toString方法。
+     
+   编译器为enum constant添加的方法（每个enum constant都继承自java.lang.Enum）：
+   | name              | description                                                       |
+   |-------------------+-------------------------------------------------------------------|
+   | toString          |                                                                   |
+   | valueOf           | 将字符串转换为enum constant 对象                                  |
+   |                   | 输入为enum type class object, name string                         |
+   | ordinal           | 返回这个enum constant在enum declaration中的编号（从0开始）        |
+   | name              | 返回这个enum constant的字符串名称，与在enum declaration中完全相同 |
+   | getDeclaringClass | 返回这个enum constant对应enum type的类对象。                      |
+   |                   | 两个enum constant的返回值相同，则它们类型相同     |
+   | compareTo                  | 比较                                                |
+   祥见java.lang.Enum类， 这个类是所有enum constant的基类。
+   
+   
+   #+begin_src java :classname Test
+   enum Status {
+       INIT, CONFIGURED, ACTIVATED, ENABLED, DISABLED
+   }
+
+   public class Test {
+       public static void main(String[] args){
+           Status s = Status.INIT;
+           System.out.println(s.getClass());
+           System.out.println(s.ordinal());
+           System.out.println(s.getDeclaringClass());
+
+           s = Status.valueOf("ENABLED");
+           System.out.println(s);
+       }
+   }
+   #+end_src
+   
+   #+RESULTS:
+   | class   | Status |
+   | 0       |        |
+   | class   | Status |
+   | ENABLED |        |
+   
+   - enum constant 与enum type的类相同。有点神奇。
+   - 此处的valueOf应该是enum type的函数，而非enum constant. 因后者需要两个参数。
+     TODO： 通过reflection查看Status类。
+     
+
+   编译器为enum type添加的方法：
+   | name   | description                                            |
+   |--------+--------------------------------------------------------|
+   | values | 返回这个enum type中所有的enum constant对象，以一个列表 |
+   则可以通过for 语法遍历所有的值：
+   #+begin_src java :classname Test
+   enum Status {
+       INIT, CONFIGURED, ACTIVATED, ENABLED, DISABLED
+   }
+
+   public class Test {
+       public static void main(String[] args){
+           System.out.println(Status.values().getClass());
+           for(Status s: Status.values()){
+               System.out.println(s);
+           }
+           
+       }
+   }
+   #+end_src
+
+   #+RESULTS:
+   | class      | [LStatus; |
+   | INIT       |           |
+   | CONFIGURED |           |
+   | ACTIVATED  |           |
+   | ENABLED    |           |
+   | DISABLED   |           |
+
+  
+   Enum在switch语句中的：
+   #+begin_src java :classname Test
+   enum Status {
+       INIT, CONFIGURED, ACTIVATED, ENABLED, DISABLED
+   }
+
+   public class Test {
+       public static void main(String[] args){
+           Status s = Status.ENABLED;
+           switch(s){
+           case INIT:
+               System.out.println("INIT");
+               break;
+           case ENABLED:
+               System.out.println("ENABLED");
+               break;
+           default:
+               System.out.println("default");
+           }
+       }
+   }
+   #+end_src
+
+   #+RESULTS:
+   : ENABLED
+
+   - Enum type can be ignored in switch block.
+
+
+   为enum类型添加方法（P749）。
+   由于enum本质上是一个类，因此可以添加方法。比如添加一个构造函数，用于初始化变量值。
+   #+begin_src java :classname Test
+   enum Status {
+       INIT("init", 2), CONFIGURED, ACTIVATED,
+       ENABLED("enabled", 3), DISABLED;
+       String desc = "No desc";
+       int num = -1;
+       private Status(String desc, int num){
+           this.desc = desc;
+           this.num = num;
+       }
+       Status(){}
+       @Override
+       public String toString(){
+           return desc+", "+num;
+       }
+   }
+
+   public class Test {
+       public static void main(String[] args){
+           for(Status s: Status.values()){
+               System.out.println(s);
+           }
+       }
+   }
+   #+end_src
+
+   #+RESULTS:
+   | init    |  2 |
+   | No desc | -1 |
+   | No desc | -1 |
+   | enabled |  3 |
+   | No desc | -1 |
+   注：
+   - 方法必须加在常量声明前
+   - 这个例子也演示了覆盖基类方法的方法（与正常类一样）。
+   - 可以通过覆盖ordical方法，修改默认顺序值。
+     
+** 常见用途详解
+   static import:则不需要再写类名，可直接使用常量值。
+   import的语法：
+   import static PackageName.Status.*;
+   好处是更简洁了。坏处是可能可读性降低。
+   注： 以下两种情况下，不能static import: 1。 enum定义在同文件中；2。 enum在默认包中。
+   TODO： 补充一个例子。见P748。
+
+
+   使用EnumSet来代替bit flag位。如一个32位的寄存器，可以通过定义一个包含32个值的Enum type，然后创建一个EnumSet。一个enum constant如果包含在这个EnumSet中，表示置位（值为1）；不包含则表示复们（值为0）。 P759。
+** 在框架中的应用例子
+   在JDK中：
+   EnumSet： 只能存储同一种Enum type的enum constant的Set。
+   EnumMap： key只能为存储同一种Enum type的enum constant的map。
+   内部通过bit位实现，以提高效率。这种类型比较常用，因此单独做了优化。提供了一般情况，并不妨碍提供特殊情况。
+   经
+** java5之前（enum未引入）模拟enum
+   见java.nio.fileChannel.Mapmode class的实现。
+   #+begin_src java :classname Test
+   /**
+    ,* A typesafe enumeration for file-mapping modes.
+    ,*
+    ,* @since 1.4
+    ,*
+    ,* @see java.nio.channels.FileChannel#map
+    ,*/
+   public static class MapMode {
+
+       /**
+        ,* Mode for a read-only mapping.
+        ,*/
+       public static final MapMode READ_ONLY
+           = new MapMode("READ_ONLY");
+
+       /**
+        ,* Mode for a read/write mapping.
+        ,*/
+       public static final MapMode READ_WRITE
+           = new MapMode("READ_WRITE");
+
+       /**
+        ,* Mode for a private (copy-on-write) mapping.
+        ,*/
+       public static final MapMode PRIVATE
+           = new MapMode("PRIVATE");
+
+       private final String name;
+
+       private MapMode(String name) {
+           this.name = name;
+       }
+
+       /**
+        ,* Returns a string describing this file-mapping mode.
+        ,*
+        ,* @return  A descriptive string
+        ,*/
+       public String toString() {
+           return name;
+       }
+
+   }
+
+   #+end_src

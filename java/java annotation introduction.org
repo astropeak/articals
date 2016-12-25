@@ -80,7 +80,7 @@
    @Rentention(RententionPolicy.RUNTIME)
    @Target(ElementType.Method)
    public @interface Autocall {
-       String msg default "";
+       String msg() default "";
    }
    #+end_src
    

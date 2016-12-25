@@ -1,0 +1,271 @@
+* NIO简介
+** 简介： 是什么， 用途， 为什么有用，有没有可替代方案
+   NIO， the new IO package提供了一种新的IO操作的实现，相对于老的IO包，主要功能是提高IO操作的效率。老的IO包采用stream模型，将IO抽象为字符流，每次只读取或写入一个字符。NIO则采用block模型，通过块的方式读取写入数据，以此提高效率（因为这个模型与操作系统对于IO设备的处理更接近）。
+   此外，NIO还提供了一些新的功能，如selector，用于简化异步事件的处理。非阻塞。文件锁。
+   
+** buffer and channel
+   NIO提出了两个新的概念： buffer和channel. 
+   channel是对IO设备的抽象，如标准输入是一个channel， socket是一个channel, 文件是一个channel。 channel是双向的（stream是单向的），提供读取或者写入的函数接口。 channel的读定接口函数定义如下：
+   #+begin_src java :classname Test
+      public int read(ByteBuffer dst) throws IOException;
+      public int write(ByteBuffer src) throws IOException;
+   #+end_src
+   
+   #+RESULTS:
+   
+   Buffer则是作为channel读取或写入函数的参数。 对于读取操作，读取到的内容会被保存在作为参数的buffer；对于写入操作，先在buffer中保存待写入的内容，然后再将这个buffer传给channel的write函数。
+   因此buffer是对data block的封装，jdk实现中，buffer的底层数据结构可能是array.
+   
+   Buffer的实现中，提供了很多操作函数，用于操作这个数据块。Buffer的接口定义：
+   #+begin_src java :classname Test
+   public abstract class Buffer {
+       public final Buffer flip();
+       public final Buffer clear();
+       public final Buffer rewind();
+       
+       public final Buffer mark();
+       public final Buffer reset();
+
+       public final int capacity();
+       public final int limit();
+       public final int position();
+       public final Buffer limit(int);
+       public final Buffer position(int);
+
+       public final boolean hasRemaining();
+       public final int remaining();
+
+       public abstract boolean hasArray();
+       public abstract Object array();
+   }
+   #+end_src
+   前面几个（除了最后两个）都是对Buffer内部三个状态变量position, limit, capacity的操作。最后两个是对Buffer底层array的操作。
+   
+   关于Buffer的几个知识点：
+   - ByteBuffer为Buffer的子类。channel能够接受的类型只能是这个。
+   - 对于每种primitive的数据类型，都有一个Buffer的子类，如Int对应 IntBuffer, Long对应LongBuffer。这些buffer类型的作用是将相应类型的数据保存进Buffer,或从buffer中读取相应类型的数据。
+   - 可以将ByteBuffer转换成其它类型的Buffer， 调用asXxxBuffer方法即可。如ByteBuffer.asIntBuffer()将返回一个IntBuffer的对象。但没有办法将其它类型的buffer（如IntBuffer）转换为ByteBuffer类型。
+     
+   因此 ，向ByteBuffer中保存Int类型数据的方法为：先创建一个ByteBuffer bb, 然后将bb转换为IntBuffer ib，最后调用ib的put方法写入数据。
+   #+begin_src java :classname Test
+   Int[] ia = [1, 2, 3];
+   ByteBuffer bb = ByteArray.allocate(1024);
+   IntBuffer ib = bb.asIntBuffer();
+   ib.put(ia);
+   #+end_src
+   
+   从ByteBuffer获取Int类型数据的方法为： 将ByteBuffer的对象 bb转换为IntBuffer ib， 然后调用ib的array方法获取底层数据。
+   #+begin_src java :classname Test
+   IntBuffer ib = bb.asIntBuffer();
+   Int[] ai = ib.array();
+   while(ib.hasRemaining()){
+       System.out.println(ib.position()+":"+ib.get());
+   }
+   #+end_src
+   
+   以上场景在需要将int 数据写入到一个channel时将被用到。因为channle只接受ByteBuffer类型，并且写入int数据又需要IntBuffer。
+   
+   
+   Buffer先讲到这，再看下channel. 前面说出，channel是对IO设备的抽象，这里以向一个文件中写入内容为例说明。用到的channel类为FileChannel，它是对文件的抽象。
+   首先创建一个FileChannel, 使用FileChannle的static open函数。这个函数声明如下：
+   #+begin_src java :classname Test
+   public static FileChannel open(Path path, OpenOption... options)
+   #+end_src
+   需要两个参数，这两个参数的类型都不太熟悉。更简单的方式是从FileInputStream或FileOutputStream的getChannel方法获取一个。如下：
+   #+begin_src java :classname Test
+   FileOutputStream fo = new FileOutputStream("a.txt");
+   FileChannel fc = fo.getChannel();
+   #+end_src
+   
+   然后再创建一个ByteBuffer对象，并将数据填好。最后将这个ByteBuffer对象传递给FileChannle的write函数将内容写出：
+   #+begin_src java :classname Test
+   Char[] ca = ['a', 'b', 'c'];
+   ByteBuffer bb = ByteArray.allocate(1024);
+   CharBuffer cb = bb.asCharBuffer();
+   cb.put(ca);
+
+   fc.write(bb);
+   #+end_src
+   
+** buffer in detailed
+   介绍position, limit, capacity， 各个操作函数，数据转换，buffer的类型，字节序，编码。
+   Buffer的三个属性
+   position: 当前待写入或待读取的位置。如对于写操作（put函数），已经写入2个byte，则position为2(第3个位置，从0开始)。对于读操作，已经读取1byte，则position为1。
+   #+begin_src java :classname Test
+   import java.nio.*;
+   class Test {
+       public static void main(String[] args) {
+           ByteBuffer bb = ByteBuffer.allocate(1024);
+           bb.put((byte)9);
+           bb.put((byte)10);
+           System.out.println("Position after two puts: "+bb.position());
+
+           bb.flip();
+           System.out.println("Positio: "+ bb.position()+", limit: "+bb.limit());
+           Byte b = bb.get();
+           System.out.println("Position after one get: "+bb.position());
+       }
+   }
+   #+end_src
+   
+   #+RESULTS:
+   | Position | after | two    | puts: | 2 |
+   | Positio: | 0,    | limit: | 2     |   |
+   | Position | after | one    | get:  | 1 |
+   也即每次put或get操作后，position都会增加相应的数目。 position的初始值为0。
+   
+   limit: 读取操作时，表示当前buffer中保存的数据个数，也即最后一个元素的下一个坐标值。对于写操作，限定了能够写入的最大坐标值。
+   #+begin_src java :classname Test
+   import java.nio.*;
+   class Test {
+       public static void main(String[] args) {
+           ByteBuffer bb = ByteBuffer.allocate(1024);
+           bb.limit(2);
+           System.out.println("Positio: "+ bb.position()+", limit: "+bb.limit());
+           try {
+               bb.put((byte)9);
+               bb.put((byte)10);
+               bb.put((byte)12);
+           } catch (BufferOverflowException e) {
+               System.out.println("Put operation failed.");
+           }
+
+            bb.flip();
+           System.out.println("Position: "+ bb.position()+", limit: "+bb.limit());
+           while(bb.hasRemaining()){
+               System.out.println("position: "+bb.position()+", value: "+bb.get());
+           }
+       }
+   }
+   #+end_src
+   
+   #+RESULTS:
+   | Positio:  | 0,        | limit:  |  2 |
+   | Put       | operation | failed. |    |
+   | Position: | 0,        | limit:  |  2 |
+   | position: | 0,        | value:  |  9 |
+   | position: | 1,        | value:  | 10 |
+   其中bb.hasRemaining()函数就是利用limit来决断是否还有元素。 limit的初始值为capacity.
+   
+   capacity: buffer的最大容量，表示可以保存的最大元素数目。在创建buffer时指定，并且不能改变。如以上例子中capacity的值为1024。
+   关系： position<=limit<=capacity.
+   
+   两个常用的操作这三个变量的函数：
+   flip: 将limit设置为当前的position, 将position设置为0。这个函数在向Buffer中写入了一些内容，在开始读取时调用。
+   clear: 将limit设置为capacity,将position设置为0。这个函数用于清除Buffer的内容，在写操作前调用。
+   
+   
+   CharSet, CharSetEncoder, CharSetDecoder.
+   CharSet is a mapping between name and real char set, CharSetEncoder and CharSetDecoder can be created by CharSet.newEncoder and CharSet.newDecoder method.
+   CharSetEncoder convert Char to Byte. CharSetEncoder.encode accept a CharBuffer, and return a ByteBuffer.
+   CharSetDecoder convert Byte to Char. CharSetDecoder.decode accept a ByteBuffer, and return a CharBuffer.
+   The three class are used to convert byte and chars. But if you don't use these clasess, seems it also works. Maybe because they use the systems's default encode and decode method.
+
+   #+begin_src java :classname Test
+   import java.nio.*;
+   import java.nio.charset.*;
+   class Test {
+       public static void main(String[] args) {
+           Charset cs = Charset.forName("GBK");
+           CharsetEncoder en = cs.newEncoder();
+           CharsetDecoder de = cs.newDecoder();
+           ByteBuffer bb = ByteBuffer.allocate(20);
+           CharBuffer cb = bb.asCharBuffer();
+           cb.put("ABC");
+           bb.limit(10);
+           while(bb.hasRemaining()){
+               System.out.println("bb position: "+bb.position()+", value: "+bb.get());
+           }
+
+           cb.flip();
+           try {
+               ByteBuffer bb1 = en.encode(cb);
+               while(bb1.hasRemaining()){
+                   System.out.println("position: "+bb1.position()+", value: "+bb1.get());
+               }
+           } catch (CharacterCodingException e){
+               System.out.println("coding error");
+           }
+
+           System.out.println("\ub2bb");
+       }
+
+   }
+   #+end_src   
+
+   #+RESULTS:
+   | bb        | position: | 0,     | value: |  0 |
+   | bb        | position: | 1,     | value: | 65 |
+   | bb        | position: | 2,     | value: |  0 |
+   | bb        | position: | 3,     | value: | 66 |
+   | bb        | position: | 4,     | value: |  0 |
+   | bb        | position: | 5,     | value: | 67 |
+   | bb        | position: | 6,     | value: |  0 |
+   | bb        | position: | 7,     | value: |  0 |
+   | bb        | position: | 8,     | value: |  0 |
+   | bb        | position: | 9,     | value: |  0 |
+   | position: | 0,        | value: | 65     |    |
+   | position: | 1,        | value: | 66     |    |
+   | position: | 2,        | value: | 67     |    |
+   | ?         |           |        |        |    |
+
+
+   Java默认的字符编码为UTF-16，因此通过CharBuffer保存Char数据到一个ByteBuffer时（通过viewer buffer）， 每个Char将占用两个字节在ByteBuffer。 但如果使用UTF-8的encoder将一个CharBuffer转换成ByteBuffer，则每个Char只占用一个字节在ByteBuffer中。
+   这就是CharsetEncoder的作用：当需要将Char保存为其它编码时（而非java系统默认的UTF-16），则只能通过这个类。
+
+   GBK encoding: 一个字符可以是一个字节或两个字节。对于 00-7F的字符，编码为一个字节；其它则为两个字节。如何区分是一个字节还是两个字节？当一个字节的最高位为1时，则表示这个是一个字符的第一个字节，紧接着的字节是这个字符的第二个字节，这个字符占用两个字节。否则这个字符占用一个字节。
+
+   所有支持的charset的名称： https://docs.oracle.com/javase/8/docs/technotes/guides/intl/encoding.doc.html
+
+   
+   After put to a buffer, position's value is? Seems position value is only for get. The put operation has its own index.
+   Below codes works
+   #+begin_src java :classname Test
+        import java.nio.*;
+        class Test {
+            public static void main(String[] args) {
+                ByteBuffer bb = ByteBuffer.allocate(1024);
+                CharBuffer cb = bb.asCharBuffer();
+                cb.put("Hello !");
+                System.out.println("bb position: "+bb.position()+", cb position: "+cb.position());
+                char c;
+                while((c = bb.getChar()) != 0){
+                    System.out.print(c+" ");
+                }
+            }
+        }
+        #+end_src
+   
+   #+RESULTS:
+   | bb | position: | 0, | cb | position: | 7 |
+   | H  | e         | l  | l  | o         | ! |
+   
+   Answer: After put to a buffer, position's value will be increased by one. The above codes works because position of 'cb' was changed after putting data, but position of 'bb' was not changed.
+   
+   Buffer子类型的实现：
+   ByteBuffer is implemented in java.nio package. But in jdk code, it is compiled form a template: X-buffer.java.template. All XxxBuffer comes from this template.
+   
+** channel in detailed
+   介绍channel的类型， 主要操作函数，类层次结构，mapped file.
+   
+   
+   a channel can be mapped to a MappedByteBuffer. Then write to the buffer will automatically write to the channel. FileChannle.map() will produce a MappedByteBuffer.
+** selector的使用
+   介绍Selector类及使用
+   
+   Learn Selector:
+   http://www.ibm.com/developerworks/java/tutorials/j-nio/j-nio.html
+   
+   被用作监听异步事件。如检测channel是否可以写（OP_WRITE），channel是否有数据可以读（OP_READ），socket connect and accept event.
+   一个selector可以注册多个channel,注册时会提供一个需要监听的事件。然后在主程序中， 调用 selector的select函数，如果已有被监听事件发生，这个函数立即返回，反之则阻塞。然后调用selector.selectedKeys(）返回当前所有的selectionKey为一个set。每个selectionKey 代表一个channel事件。 通过key.channel()获得这个key对应的channel; 通过key.readyOps()来得知是哪个事件（这个值是一个bit的mask)。
+   相当于一个集中的事件异步处理器。对于网络编程很有用。
+   
+** file lock
+   介绍FileLock类及使用 
+   
+   a file can be locked, or a portion of file can be locked.
+   Using FileChannel.tryLock() or FileChannel.lock() function. Different portion of file can be locked at the same time.
+   
+** non blocking feature
+   介绍non blocking读写的特性。
+   
