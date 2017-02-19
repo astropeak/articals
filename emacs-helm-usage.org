@@ -101,6 +101,20 @@ Helm软件包本身包含两部分，框架本身及应用。以上列表均为�
 
     (helm :sources '(some-helm-source))
     #+END_SRC
+
+*** 添加一个persistent action
+    Persistent action是指执行action后，不退出helm，类似于预览功能，默认绑定在\C-z。通过'persistent-action'来指定，如果未指定，则与第一个action一样。
+    
+    #+BEGIN_SRC elisp 
+    (setq some-helm-source
+          '((name . "HELM at the Emacs")
+            (candidates . (1 2 3 4))
+            (persistent-action . (lambda (candidate) (message "%s" candidate)))
+            (action . (lambda (candidate)
+                        (message-box "%s" candidate)))))
+
+    (helm :sources '(some-helm-source))
+    #+END_SRC
 *** helm-org-headlines的定义
     这个命令由helm默认提供，其定义如下，可为实现新的命令提供参考。
     #+BEGIN_SRC elisp

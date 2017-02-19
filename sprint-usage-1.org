@@ -1,0 +1,107 @@
+#+BLOG: cnblogs
+#+POSTID: 6416444
+#+DATE: [2017-02-19 Sun 17:56]
+#+TITLE: Spring使用 --- 基本概念（一）：DI，依赖注入
+
+本文讲述sprint基本概念之一： DI， 即依赖注入。
+* 什么是依赖注入
+  说类A依赖于类B，最简单的例子是类A有一个类型为类B的成员变量。
+  
+  依赖注入是指类A不用关心类B对象如何创建，它只知道有一个类B的对象，只需要使用就行了。 这样有几个好处：
+  1. 可以很容易替换类B的对象，达到不同的效果
+  2. 类A更容易测试。只需要创建一个类B的mock对象即可。
+  3. 类A与类B解藕
+     
+  不使用依赖注入时，类A负责创建类B的对象，写法如下：
+  #+begin_src java :classname Test
+  class A {
+      B b;
+      A (){
+          // 此处A创建一个B的对象，作为自己的成员变量
+          b = new B();
+      }
+      void foo(){
+          b.bar();
+      }
+  }
+
+  class B {
+      void bar(){
+          System.out.println("B bar");
+      }
+  }
+  #+end_src
+  其中创建类B对象的代码写死在类A的定义中，很码很僵化。如果想使用B的一个子类对象，除了修改类A的代码，别无它法。
+  
+  一种更好的方法是通过构造器传入类B的对象，代码如下：
+  #+begin_src java :classname Test
+  class A {
+      B b;
+      A (B b){
+          this.b = b;
+      }
+      void foo(){
+          b.bar();
+      }
+  }
+  // B的定义不变
+  #+end_src
+  这种方法也叫构造器注入。此时代码灵活了很多。此时类A的代码可以处理所有类B的子类。一般将B定义为接口，实际传入的是一个实现。这也是面向接口编程的一个例子。
+  
+  Sprint中对于依赖注入实现的效果与构造器注入大致相同，只不过使用xml配置文件来完成将类B的对象装配给类A的对象。依赖注入主要维护对象之前的依赖关系，对象的创建。如果对象a依赖于另一个对象b，则Spring创建对象a时，根据事先定义的依赖规则（一般写在xml文件中），会先创建一个对象b，然后再创建对象a，最后将b装配给对象a。装配的意思是赋值，一般通过调用setter函数。
+  
+* 怎样使用
+  仍然采用上面的例子，类A，类B的定义如下：
+  #+begin_src java :classname Test
+  class A {
+      B b;
+      A (B b){
+          this.b = b;
+      }
+      void foo(){
+          b.bar();
+      }
+  }
+  class B {
+      void bar(){
+      }
+  }
+  #+end_src
+  
+  
+  再创建一个xml文件，指定类A、B的依赖关系：
+  #+BEGIN_SRC xml
+  <beans>
+    <bean id="a" class="A">
+      <constructor-arg ref="b"/>
+    </bean>
+    <bean id="b" class="B">
+    </bean>
+  </beans>
+  #+END_SRC
+  
+  
+  最后在主代码中调用ApplicationContext.getBean("a")函数来获取类A的一个实例：
+  #+begin_src java :classname Test
+  import org.springframework.context.support.ClassPathXmlApplicationContext;
+  class Test {
+      public static void main(String[] args) {
+          ClassPathXmlApplicationContext context =
+              new ClassPathXmlApplicationContext("a.xml");
+          A a = context.getBean("a");
+          a.foo();
+          context.close();
+      }
+  }
+  #+end_src
+  其中ApplicationContext是bean的container，bean是一个符合一定要求的java类。
+  
+* 什么时候使用
+  只要是有对象依赖的情况下，都可以使用依赖注入来将类之前的依赖也类对象的创建这部分从核心代码里剥离出来，通过srping来管理及实现。感觉实际上是软件模块、组件更细的划分。
+  
+  任何稍大一些的软件都是由多个类组成，这些类协同共同完成功能（通过组合的方式）。因此在绝大多数项目中都需要使用。
+  
+* 好处
+  - 对象之间解藕
+  - 可能方便的更改使用哪个依赖对象，只需要修改配置文件就行了
+  - 类的测试会方便很多，只要为所有依赖的类创建mock对象即可
